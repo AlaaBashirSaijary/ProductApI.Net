@@ -28,6 +28,13 @@ Dependencies point inward: `API → Application → Domain`, `Infrastructure →
 - Queries: `GetProductsQuery`, `GetProductByIdQuery`
 - A `ValidationBehavior` pipeline runs the FluentValidation validators before every handler.
 
+## Employee API — Async/Await & Performance
+- `GET/POST /api/employees`, `GET/PUT/DELETE /api/employees/{id}` — all async (`Task<T>`) from Controller to Service to Repository (`ToListAsync`, `FirstOrDefaultAsync`, `SaveChangesAsync`), with a `CancellationToken` passed end to end.
+- `GET /api/performance/compare?delayA=400&delayB=600` — runs two independent I/O-bound operations sequentially and then in parallel (`Task.WhenAll`), measures each with `Stopwatch` and returns the timings with a short report. Each parallel task uses its own DI scope because `DbContext` is not thread-safe.
+- Client-aborted requests are logged as cancelled by the exception middleware instead of surfacing as errors.
+- UI: `/employees.html` (CRUD, timeline comparison, cancel button, live server log).
+- Note: with an existing SQL Server database that already has the `Products` table, `EnsureCreated` will not add the new `Employees` table; drop the database or use migrations.
+
 ## Logging
 - `LoggingBehavior` (MediatR pipeline) logs every command/query with its duration; handlers log business events (created, retrieved, not found); the exception middleware logs validation failures and unhandled errors.
 - Serilog sinks: Console, rolling File (`logs/products-YYYYMMDD.log`, 14 days), and an in-memory sink exposed at `GET /api/logs?after={id}` for the UI.

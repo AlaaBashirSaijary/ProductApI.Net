@@ -26,6 +26,11 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             await context.Response.WriteAsJsonAsync(new ProblemDetails { Status = 404, Title = ex.Message });
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogInformation("Request cancelled by the client: {Method} {Path}", context.Request.Method, context.Request.Path);
+            context.Response.StatusCode = 499;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception");

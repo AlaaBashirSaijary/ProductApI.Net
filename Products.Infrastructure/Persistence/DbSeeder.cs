@@ -8,6 +8,18 @@ public static class DbSeeder
     public static async Task SeedAsync(AppDbContext db)
     {
         await db.Database.EnsureCreatedAsync();
+        if (!await db.Employees.AnyAsync())
+        {
+            db.Employees.AddRange(
+                new Employee { Name = "Sara Ahmed", Position = "Backend Developer", Department = "Engineering", Salary = 4200m },
+                new Employee { Name = "Omar Khaled", Position = "QA Engineer", Department = "Engineering", Salary = 3300m },
+                new Employee { Name = "Lina Hassan", Position = "HR Manager", Department = "HR", Salary = 3800m },
+                new Employee { Name = "Yousef Nasser", Position = "Accountant", Department = "Finance", Salary = 3500m },
+                new Employee { Name = "Rana Saleh", Position = "UI Designer", Department = "Design", Salary = 3600m },
+                new Employee { Name = "Hadi Mansour", Position = "DevOps Engineer", Department = "Engineering", Salary = 4600m });
+            await db.SaveChangesAsync();
+        }
+
         if (await db.Products.AnyAsync()) return;
 
         db.Products.AddRange(
