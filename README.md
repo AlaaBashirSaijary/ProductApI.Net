@@ -44,6 +44,10 @@ Dependencies point inward: `API → Application → Domain`, `Infrastructure →
    ```bash
    dotnet run --project Products.API
    ```
+   No SQL Server? Set `"UseInMemoryDatabase": true` (in `appsettings.Development.json`) to run with an in-memory EF database, or start SQL Server with Docker:
+   ```bash
+   docker run -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='Your_password123' -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
+   ```
 4. In Development the database is created and seeded with sample products on startup. Open `/` for the explorer UI, or call `GET /api/products`.
 
 ### Example

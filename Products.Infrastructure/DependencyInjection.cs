@@ -12,7 +12,13 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
     {
         services.AddDbContext<AppDbContext>(o =>
-            o.UseSqlServer(config.GetConnectionString("DefaultConnection")));
+        {
+            // Local convenience: run without SQL Server by setting "UseInMemoryDatabase": true
+            if (bool.TryParse(config["UseInMemoryDatabase"], out var inMemory) && inMemory)
+                o.UseInMemoryDatabase("ProductsDb");
+            else
+                o.UseSqlServer(config.GetConnectionString("DefaultConnection"));
+        });
         services.AddScoped<IProductRepository, ProductRepository>();
         return services;
     }
