@@ -95,6 +95,16 @@ tbody tr{cursor:pointer;transition:.15s}tbody tr:hover{background:var(--brand-so
 .err{color:var(--err);font-size:13px;margin-top:4px}
 .mode{display:flex;gap:6px;align-items:center}
 .switch{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:5px 12px;border-radius:99px;font:inherit;font-size:13px;cursor:pointer}
+.logs{background:var(--code-bg);border-radius:14px;padding:6px 0;max-height:340px;overflow:auto;font-size:12.5px}
+.log{display:grid;grid-template-columns:70px 52px 150px 1fr;gap:10px;padding:5px 14px;color:var(--code-ink);align-items:baseline}
+.log:hover{background:#ffffff0d}
+.log .t{color:#7c82b0}.log .src{color:#a5a9d6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv{font-weight:700}.lv.Information{color:#34d399}.lv.Warning{color:#fbbf24}.lv.Error,.lv.Fatal{color:#fb7185}.lv.Debug{color:#7c82b0}
+.log.new{animation:flash 1.2s}
+@keyframes flash{from{background:#8b84ff40}to{background:transparent}}
+@media(max-width:620px){.log{grid-template-columns:1fr;gap:0}}
+.logbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.logbar .filters{display:flex;gap:6px}
 footer{margin-top:50px;text-align:center;color:var(--muted);font-size:13px}
 </style>
 </head>
@@ -170,6 +180,21 @@ footer{margin-top:50px;text-align:center;color:var(--muted);font-size:13px}
     <table><thead><tr><th>الاسم</th><th>السعر</th><th>Id</th></tr></thead><tbody id="rows"></tbody></table>
   </div>
 
+  <h2>سجل الأحداث (Logging)</h2>
+  <p class="sub">أحداث Serilog / ILogger لحظة بلحظة. تُكتب أيضاً في الـ console وفي ملفات <span class="mono">logs/products-YYYYMMDD.log</span>.</p>
+  <div class="card">
+    <div class="logbar">
+      <div class="filters" id="lvFilters">
+        <button class="tab sel" data-lv="all">الكل</button>
+        <button class="tab" data-lv="Information">Info</button>
+        <button class="tab" data-lv="Warning">Warning</button>
+        <button class="tab" data-lv="Error">Error</button>
+      </div>
+      <button class="switch" id="clearLogs">مسح العرض</button>
+    </div>
+    <div class="logs mono" id="logs"></div>
+  </div>
+
   <footer>Products API · Clean Architecture & CQRS</footer>
 </div>
 
@@ -211,17 +236,26 @@ async function call(method,path,body){
   return demo(method,path,body);
 }
 function demo(method,path,body){
-  if(method==='GET'&&path==='/api/products')return{status:200,data:[...mem]};
+  if(method==='GET'&&path==='/api/products'){
+    pushLog('Information','LoggingBehavior','Handling GetProductsQuery');
+    pushLog('Information','GetProductsQueryHandler',`Retrieved ${mem.length} products`);
+    return{status:200,data:[...mem]};
+  }
   if(method==='GET'){
     const id=path.split('/').pop(),p=mem.find(x=>x.id===id);
-    return p?{status:200,data:p}:{status:404,data:{status:404,title:`Product ${id} was not found.`}};
+    pushLog('Information','LoggingBehavior',`Handling GetProductByIdQuery { Id: ${id} }`);
+    if(p)return{status:200,data:p};
+    pushLog('Warning','GetProductByIdQueryHandler',`Product ${id} was not found`);
+    return{status:404,data:{status:404,title:`Product ${id} was not found.`}};
   }
+  pushLog('Information','LoggingBehavior',`Handling CreateProductCommand { Name: ${body.name}, Price: ${body.price} }`);
   const errors={};
   if(!body.name||!String(body.name).trim())errors.Name=["'Name' must not be empty."];
   else if(body.name.length>200)errors.Name=["The length of 'Name' must be 200 characters or fewer."];
   if(!(Number(body.price)>0))errors.Price=["'Price' must be greater than '0'."];
-  if(Object.keys(errors).length)return{status:400,data:{status:400,errors}};
+  if(Object.keys(errors).length){pushLog('Warning','ExceptionHandlingMiddleware','Validation failed: '+Object.values(errors).flat().join('; '));return{status:400,data:{status:400,errors}};}
   const p={id:uid(),name:body.name,price:Number(body.price)};mem.push(p);
+  pushLog('Information','CreateProductCommandHandler',`Product created with Id ${p.id}, Name ${p.name}, Price ${p.price}`);
   return{status:201,data:p};
 }
 
@@ -260,6 +294,30 @@ $('#themeBtn').onclick=()=>{
   document.documentElement.dataset.theme=dark?'light':'dark';
 };
 
+/* ---- logs ---- */
+let lastLog=0, logRows=[], lvFilter='all';
+function renderLogs(fresh=0){
+  const rows=logRows.filter(l=>lvFilter==='all'||l.level===lvFilter);
+  $('#logs').innerHTML=rows.length?rows.slice(-120).map((l,i,a)=>
+    `<div class="log ${i>=a.length-fresh?'new':''}"><span class="t">${new Date(l.timestamp).toLocaleTimeString('en-GB')}</span><span class="lv ${l.level}">${l.level.slice(0,4).toUpperCase()}</span><span class="src">${esc(l.source)}</span><span>${esc(l.message)}</span></div>`).join('')
+    :'<div class="empty" style="font-family:Tajawal">لا توجد أحداث بعد</div>';
+  const box=$('#logs');box.scrollTop=box.scrollHeight;
+}
+function pushLog(level,source,message){logRows.push({id:++lastLog,timestamp:new Date().toISOString(),level,source,message});renderLogs(1)}
+async function pollLogs(){
+  if(!live)return;
+  try{
+    const r=await fetch('/api/logs?after='+lastLog);
+    const items=await r.json();
+    if(items.length){logRows.push(...items);lastLog=items[items.length-1].id;renderLogs(items.length)}
+  }catch{}
+}
+document.querySelectorAll('#lvFilters .tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#lvFilters .tab').forEach(x=>x.classList.toggle('sel',x===b));
+  lvFilter=b.dataset.lv;renderLogs();
+});
+$('#clearLogs').onclick=()=>{logRows=[];renderLogs()};
+
 /* ---- boot ---- */
 (async()=>{
   try{const r=await fetch('/api/products',{signal:AbortSignal.timeout(3000)});live=r.ok}catch{live=false}
@@ -267,7 +325,7 @@ $('#themeBtn').onclick=()=>{
   $('#modeTxt').textContent=live?'API حقيقي':'وضع تجريبي';
   $('#modePill').title=live?'':'بيانات في الذاكرة. شغّل Products.API وافتح هذه الصفحة من خادمه للاتصال بقاعدة البيانات';
   if(!live)mem=[['Laptop',1499],['Wireless Headphones',89.9],['Mechanical Keyboard',45],['Gaming Mouse',29.99],['27" Monitor',329.5],['USB-C Hub',24.75],['Webcam HD',59],['External SSD 1TB',119.99]].map(([name,price])=>({id:uid(),name,price}));
-  drawFlow('list');refresh();
+  drawFlow('list');refresh();renderLogs();if(live){await pollLogs();setInterval(pollLogs,1500)}
 })();
 </script>
 </body>

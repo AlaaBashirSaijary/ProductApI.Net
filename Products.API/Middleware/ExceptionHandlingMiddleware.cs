@@ -4,7 +4,7 @@ using Products.Application.Common.Exceptions;
 
 namespace Products.API.Middleware;
 
-public class ExceptionHandlingMiddleware(RequestDelegate next)
+public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
 {
     public async Task InvokeAsync(HttpContext context)
     {
@@ -14,6 +14,7 @@ public class ExceptionHandlingMiddleware(RequestDelegate next)
         }
         catch (ValidationException ex)
         {
+            logger.LogWarning("Validation failed: {Errors}", string.Join("; ", ex.Errors.Select(e => e.ErrorMessage)));
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             var errors = ex.Errors.GroupBy(e => e.PropertyName)
                 .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
@@ -21,8 +22,15 @@ public class ExceptionHandlingMiddleware(RequestDelegate next)
         }
         catch (NotFoundException ex)
         {
+            logger.LogWarning("Not found: {Message}", ex.Message);
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             await context.Response.WriteAsJsonAsync(new ProblemDetails { Status = 404, Title = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unhandled exception");
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            await context.Response.WriteAsJsonAsync(new ProblemDetails { Status = 500, Title = "An unexpected error occurred." });
         }
     }
 }

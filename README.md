@@ -10,6 +10,8 @@ Products API built with **Clean Architecture** and **CQRS** on .NET 10.
 - `POST /api/products` — create a product (400 on validation failure)
 - Request/response DTOs and validation with FluentValidation
 - SQL Server with EF Core, with demo data seeded in Development
+- Structured logging with `ILogger` and **Serilog**: console + rolling daily files in `Products.API/logs/`
+- Live log viewer in the UI backed by `GET /api/logs` (in-memory Serilog sink)
 - Interactive Arabic explorer UI served at `/` (works against the live API, or in-memory demo mode when opened as a file)
 
 ## Architecture / المعمارية
@@ -25,6 +27,11 @@ Dependencies point inward: `API → Application → Domain`, `Infrastructure →
 - Command: `CreateProductCommand`
 - Queries: `GetProductsQuery`, `GetProductByIdQuery`
 - A `ValidationBehavior` pipeline runs the FluentValidation validators before every handler.
+
+## Logging
+- `LoggingBehavior` (MediatR pipeline) logs every command/query with its duration; handlers log business events (created, retrieved, not found); the exception middleware logs validation failures and unhandled errors.
+- Serilog sinks: Console, rolling File (`logs/products-YYYYMMDD.log`, 14 days), and an in-memory sink exposed at `GET /api/logs?after={id}` for the UI.
+- Levels are configured under `Serilog:MinimumLevel` in `appsettings.json`.
 
 ## Validation rules
 - `Name`: required, max 200 characters

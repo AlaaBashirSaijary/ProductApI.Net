@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Products.Application.Abstractions;
 using Products.Domain.Entities;
 
@@ -16,13 +17,14 @@ public class CreateProductCommandValidator : AbstractValidator<CreateProductComm
     }
 }
 
-public class CreateProductCommandHandler(IProductRepository repository)
+public class CreateProductCommandHandler(IProductRepository repository, ILogger<CreateProductCommandHandler> logger)
     : IRequestHandler<CreateProductCommand, ProductDto>
 {
     public async Task<ProductDto> Handle(CreateProductCommand request, CancellationToken ct)
     {
         var product = new Product(request.Name, request.Price);
         await repository.AddAsync(product, ct);
+        logger.LogInformation("Product created with Id {ProductId}, Name {Name}, Price {Price}", product.Id, product.Name, product.Price);
         return ProductDto.From(product);
     }
 }
