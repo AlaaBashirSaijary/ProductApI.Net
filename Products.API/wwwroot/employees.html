@@ -190,13 +190,15 @@ await Task.WhenAll(OpA(ct), OpB(ct)); // ≈ max(A, B)</div>
 </div>
 
 <script>
+// When the page is opened as a file (not served by the API), talk to the API on its dev port.
+const API=location.protocol.startsWith('http')?'':'http://localhost:5020';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 let editId=null;
 
 async function api(method,path,body,signal){
-  const r=await fetch(path,{method,signal,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  const r=await fetch(API+path,{method,signal,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
   let data=null;try{data=await r.json()}catch{}
   return{ok:r.ok,status:r.status,data};
 }
@@ -281,7 +283,7 @@ $('#cancelBtn').onclick=()=>abort&&abort.abort();
 let lastLog=0;
 async function pollLogs(){
   try{
-    const items=await (await fetch('/api/logs?after='+lastLog)).json();
+    const items=await (await fetch(API+'/api/logs?after='+lastLog)).json();
     if(!items.length)return;
     lastLog=items[items.length-1].id;
     const box=$('#logs');

@@ -200,6 +200,8 @@ footer{margin-top:50px;text-align:center;color:var(--muted);font-size:13px}
 </div>
 
 <script>
+// When the page is opened as a file (not served by the API), talk to the API on its dev port.
+const API=location.protocol.startsWith('http')?'':'http://localhost:5020';
 const $=s=>document.querySelector(s), sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let live=false, mem=[];
 const uid=()=>crypto.randomUUID();
@@ -230,7 +232,7 @@ async function animate(kind,stopAt){
 /* ---- backend: real or in-memory ---- */
 async function call(method,path,body){
   if(live){
-    const r=await fetch(path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+    const r=await fetch(API+path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
     let data=null;try{data=await r.json()}catch{}
     return{status:r.status,data};
   }
@@ -308,7 +310,7 @@ function pushLog(level,source,message){logRows.push({id:++lastLog,timestamp:new 
 async function pollLogs(){
   if(!live)return;
   try{
-    const r=await fetch('/api/logs?after='+lastLog);
+    const r=await fetch(API+'/api/logs?after='+lastLog);
     const items=await r.json();
     if(items.length){logRows.push(...items);lastLog=items[items.length-1].id;renderLogs(items.length)}
   }catch{}
@@ -321,7 +323,7 @@ $('#clearLogs').onclick=()=>{logRows=[];renderLogs()};
 
 /* ---- boot ---- */
 (async()=>{
-  try{const r=await fetch('/api/products',{signal:AbortSignal.timeout(3000)});live=r.ok}catch{live=false}
+  try{const r=await fetch(API+'/api/products',{signal:AbortSignal.timeout(3000)});live=r.ok}catch{live=false}
   $('#dot').classList.toggle('live',live);
   $('#modeTxt').textContent=live?'API حقيقي':'وضع تجريبي';
   $('#modePill').title=live?'':'بيانات في الذاكرة. شغّل Products.API وافتح هذه الصفحة من خادمه للاتصال بقاعدة البيانات';
