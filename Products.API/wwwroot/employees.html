@@ -94,6 +94,10 @@ input[type=range]{width:100%;accent-color:var(--brand)}
 .log{display:grid;grid-template-columns:70px 52px 1fr;gap:10px;padding:4px 14px;color:var(--code-ink)}
 .log .t{color:#6f8f86}.lv{font-weight:700}.lv.Information{color:#34d399}.lv.Warning{color:#fbbf24}.lv.Error{color:#fb7185}
 .code{background:var(--code-bg);color:var(--code-ink);border-radius:14px;padding:14px;font-size:12.5px;overflow:auto;white-space:pre;direction:ltr;text-align:left}
+#toast{position:fixed;inset-inline:16px;bottom:20px;margin:auto;max-width:360px;background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;font-weight:500;text-align:center;opacity:0;transform:translateY(20px);transition:.25s;pointer-events:none;z-index:9}
+#toast.show{opacity:1;transform:none}
+tr.hl td{animation:hl 2.4s}
+@keyframes hl{0%,60%{background:var(--brand-soft)}100%{background:transparent}}
 footer{margin-top:50px;text-align:center;color:var(--muted);font-size:13px}
 </style>
 </head>
@@ -181,6 +185,7 @@ sw.Restart();
 await Task.WhenAll(OpA(ct), OpB(ct)); // ≈ max(A, B)</div>
   </div>
 
+  <div id="toast" role="status"></div>
   <footer>Employee Management API · Async/Await & Performance</footer>
 </div>
 
@@ -197,15 +202,17 @@ async function api(method,path,body,signal){
 }
 
 /* CRUD */
-async function load(){
+let tt;function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600)}
+async function load(highlightId){
   const r=await api('GET','/api/employees');
   const rows=r.data||[];
-  $('#rows').innerHTML=rows.length?rows.map(e=>`<tr>
+  $('#rows').innerHTML=rows.length?rows.map(e=>`<tr data-row="${e.id}">
     <td class="mono">${e.id}</td><td>${esc(e.name)}</td><td>${esc(e.position)}</td>
     <td><span class="tag">${esc(e.department)}</span></td><td class="mono">${money(e.salary)}</td>
     <td><div class="acts"><button class="btn ghost sm" data-edit="${e.id}">تعديل</button><button class="btn danger sm" data-del="${e.id}">حذف</button></div></td></tr>`).join('')
     :'<tr><td colspan="6" class="empty">لا يوجد موظفون</td></tr>';
   window._emps=rows;
+  if(highlightId){const tr=document.querySelector(`[data-row="${highlightId}"]`);if(tr){tr.classList.add('hl');tr.scrollIntoView({behavior:'smooth',block:'center'})}}
 }
 function openForm(e){
   editId=e?e.id:null;
@@ -217,17 +224,24 @@ $('#cancelForm').onclick=()=>{$('#form').hidden=true};
 $('#form').onsubmit=async ev=>{
   ev.preventDefault();
   const body={name:$('#fName').value,position:$('#fPos').value,department:$('#fDep').value,salary:parseFloat($('#fSal').value)||0};
-  const r=editId?await api('PUT','/api/employees/'+editId,body):await api('POST','/api/employees',body);
-  if(!r.ok){
-    $('#ferr').textContent=r.data?.errors?Object.values(r.data.errors).flat().join(' · '):(r.data?.title||'حدث خطأ');
-    return;
-  }
-  $('#form').hidden=true;load();
+  const btn=$('#saveBtn');btn.disabled=true;$('#ferr').textContent='';
+  try{
+    const r=editId?await api('PUT','/api/employees/'+editId,body):await api('POST','/api/employees',body);
+    if(!r.ok){
+      $('#ferr').textContent=r.data?.errors?Object.values(r.data.errors).flat().join(' · '):(r.data?.title||`حدث خطأ (${r.status})`);
+      return;
+    }
+    $('#form').hidden=true;
+    toast(editId?'تم تحديث بيانات الموظف ✓':'تمت إضافة الموظف بنجاح ✓');
+    await load(r.data.id);
+  }catch{
+    $('#ferr').textContent='تعذر الاتصال بالـ API. تأكد أن المشروع يعمل وأن الصفحة مفتوحة من عنوانه.';
+  }finally{btn.disabled=false}
 };
 $('#rows').onclick=async e=>{
   const ed=e.target.closest('[data-edit]'),del=e.target.closest('[data-del]');
   if(ed)openForm(window._emps.find(x=>x.id==ed.dataset.edit));
-  if(del&&confirm('حذف هذا الموظف؟')){await api('DELETE','/api/employees/'+del.dataset.del);load();}
+  if(del&&confirm('حذف هذا الموظف؟')){await api('DELETE','/api/employees/'+del.dataset.del);toast('تم حذف الموظف');load();}
 };
 
 /* performance */
